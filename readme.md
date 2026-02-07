@@ -2,6 +2,9 @@
 
 Production-ready semantic caching system that reduces LLM API costs, by semantically caching and retrieving similar queries using sentence embeddings.
 
+Demo Video (10 mins) - https://youtu.be/cpPC0Prbnus 
+Additional Scaling and Optimization info (2 mins - more down below) - https://youtu.be/85XrarJDb50 
+
 ## 🎯 Overview
 
 This system implements a sophisticated caching layer that:
