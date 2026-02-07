@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  semantic-cache:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      shm_size: '2gb'
+    deploy:
+      resources:
+        limits:
+          memory: 4G    # Maximum RAM allowed
+          cpus: '2.0'   # Recommended for SentenceTransformers on CPU
+        reservations:
+          memory: 1G    # Minimum RAM reserved
+    ports:
+      - "3000:5000"
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SIMILARITY_THRESHOLD=0.75
+      - CACHE_TTL=86400
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    driver: local
