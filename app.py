@@ -1,7 +1,3 @@
-"""
-Semantic Caching System with Redis
-Implements all challenge requirements with clean, production-ready code
-"""
 
 from flask import Flask, request, jsonify
 from sentence_transformers import SentenceTransformer
