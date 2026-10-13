@@ -1,6 +1,6 @@
 # AI Semantic Caching System
 
-Production-ready semantic caching system that reduces LLM API costs, by semantically caching and retrieving similar queries using sentence embeddings.
+Semantic caching system that reduces LLM API costs, by semantically caching and retrieving similar queries using sentence embeddings.
 
 ## 🎯 Overview
 
