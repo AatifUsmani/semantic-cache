@@ -21,6 +21,7 @@ docker-compose -f docker-compose.yml up --build
 ```
 
 The API listens on `http://localhost:3000`.
+The embedding model loads when the first query arrives; importing the Flask app does not load the model or require Redis to be available.
 
 ## Try it
 
@@ -57,6 +58,8 @@ Example request:
 }
 ```
 
+Requests with a missing, empty, or non-string `query` return `400`. A provider failure returns `503` and is not stored in the cache.
+
 ## Configuration
 
 Set these variables in `docker-compose.yml`:
@@ -78,7 +81,16 @@ Redis stores query embeddings, responses, metadata, and hit counts. Similarity s
 
 ## Tests and demos
 
-Run the included scripts inside the service container:
+Run the automated unit tests locally:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-test.txt
+python -m pytest
+```
+
+The demo and load-test scripts exercise a running service:
 
 ```bash
 docker-compose exec semantic-cache python demo.py

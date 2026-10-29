@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from sentence_transformers import SentenceTransformer
 import redis
 import numpy as np
 import time
@@ -7,6 +6,7 @@ import os
 from datetime import datetime
 import logging
 import json
+from semantic_cache.similarity import cosine_similarity
 
 # Structured logging with severity levels
 logging.basicConfig(
@@ -25,12 +25,8 @@ CACHE_TTL_EVERGREEN = int(os.getenv('CACHE_TTL_EVERGREEN', 86400))  # 24 hours
 CACHE_TTL_TIME_SENSITIVE = int(os.getenv('CACHE_TTL_TIME_SENSITIVE', 3600))  # 1 hour
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 
-# Initialize
-logger.info("Loading embedding model (all-MiniLM-L6-v2)...")
-model = SentenceTransformer('all-MiniLM-L6-v2')
-logger.info("Model loaded successfully - 384 dimensions, ~80MB")
-
-logger.info(f"Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}...")
+# Initialize lightweight clients at import time. Network connections and the
+# embedding model are created only when an endpoint needs them.
 redis_client = redis.Redis(
     host=REDIS_HOST, 
     port=REDIS_PORT, 
@@ -39,9 +35,7 @@ redis_client = redis.Redis(
     socket_timeout=5,
     retry_on_timeout=True
 )
-# Test connection
-redis_client.ping()
-logger.info("Redis connected successfully!")
+model = None
 
 # Statistics tracking with Redis persistence
 STATS_KEY = "cache:stats"
@@ -101,20 +95,6 @@ def categorize_query(query: str) -> str:
     return 'general'
 
 
-def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
-    # Force both to 1D arrays
-    v1 = np.array(vec1).flatten()
-    v2 = np.array(vec2).flatten()
-    
-    dot_product = np.dot(v1, v2)
-    norm_product = np.linalg.norm(v1) * np.linalg.norm(v2)
-    
-    if norm_product == 0:
-        return 0.0
-    
-    return float(dot_product / norm_product)
-
-
 def get_embedding(text: str) -> np.ndarray:
     """
     Convert text to 384-dimensional vector using sentence-transformers.
@@ -125,6 +105,13 @@ def get_embedding(text: str) -> np.ndarray:
     - Compact: 80MB model size
     - Production-proven: Used by thousands of companies
     """
+    global model
+    if model is None:
+        from sentence_transformers import SentenceTransformer
+
+        logger.info("Loading embedding model: all-MiniLM-L6-v2")
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+
     return model.encode(text, convert_to_numpy=True)
 
 
@@ -149,14 +136,12 @@ def search_cache(query_embedding: np.ndarray, query: str):
             
             similarity = cosine_similarity(q_vec, c_vec)
             
-            # THIS WILL SHOW IN YOUR TERMINAL - LOOK FOR THIS:
-            print(f"DEBUG: Comparing '{query[:20]}' vs '{key.decode()[:20]}' | Score: {similarity:.4f}")
-            
-            if similarity > best_similarity and similarity >= 0.70: # Dropped to 0.70 for demo
+            if similarity > best_similarity and similarity >= SIMILARITY_THRESHOLD:
                 best_similarity = similarity
                 best_match_key = key
-                
-        except Exception as e:
+
+        except (TypeError, ValueError) as e:
+            logger.warning("Skipping invalid cached embedding: %s", e)
             continue
 
     if best_match_key:
@@ -197,6 +182,10 @@ def store_in_cache(query: str, response: str, embedding: np.ndarray):
         logger.error(f"❌ Store Error: {e}")
 
 
+class LLMUnavailable(Exception):
+    """Raised when the provider cannot produce a response."""
+
+
 # Circuit breaker for LLM API (graceful degradation)
 LLM_FAILURE_COUNT_KEY = "llm:failure_count"
 LLM_CIRCUIT_OPEN_KEY = "llm:circuit_open"
@@ -205,21 +194,12 @@ CIRCUIT_RESET_TIME = 60  # seconds
 
 
 def call_llm(query: str) -> str:
-    """
-    Call LLM API with circuit breaker pattern for resilience.
-    
-    Circuit breaker prevents cascading failures:
-    - If LLM API fails 5 times, open circuit (stop trying)
-    - Wait 60 seconds, then try again
-    - This prevents overwhelming a failing service
-    
-    Replace mock with actual API call for production.
-    """
+    """Call the configured provider, raising LLMUnavailable on failure."""
     # Check circuit breaker
     circuit_open = redis_client.get(LLM_CIRCUIT_OPEN_KEY)
     if circuit_open:
-        logger.warning("LLM circuit breaker is OPEN - using fallback response")
-        return "I'm experiencing high load. Please try again in a moment."
+        logger.warning("LLM circuit breaker is open")
+        raise LLMUnavailable("LLM circuit breaker is open")
     
     try:
         if OPENAI_API_KEY:
@@ -240,27 +220,31 @@ def call_llm(query: str) -> str:
                     {"role": "user", "content": query}
                 ]
             )
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
         else:
             # Mock response for demo (simulates LLM latency)
             time.sleep(0.5)
-            return (
+            result = (
                 f"This is a mock LLM response to: '{query}'. "
                 f"In production, replace with actual API call (OpenAI, Anthropic, etc.)"
             )
-            
+
+        redis_client.delete(LLM_FAILURE_COUNT_KEY)
+        return result
     except Exception as e:
         logger.error(f"LLM API error: {e}", exc_info=True)
         
         # Increment failure count
         failures = redis_client.incr(LLM_FAILURE_COUNT_KEY)
+        if failures == 1:
+            redis_client.expire(LLM_FAILURE_COUNT_KEY, CIRCUIT_RESET_TIME)
         
         # Open circuit breaker if too many failures
         if failures >= MAX_FAILURES:
             redis_client.setex(LLM_CIRCUIT_OPEN_KEY, CIRCUIT_RESET_TIME, "1")
             logger.error(f"LLM circuit breaker OPENED after {failures} failures")
         
-        return f"Error: Unable to process your request. Please try again."
+        raise LLMUnavailable("LLM provider failed") from e
 
 @app.route('/api/query', methods=['POST'])
 def handle_query():
@@ -286,16 +270,21 @@ def handle_query():
     
     try:
         # Parse and validate request
-        data = request.get_json()
-        if not data or 'query' not in data:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or 'query' not in data:
             logger.warning("Request missing 'query' parameter")
             return jsonify({'error': 'Query parameter required'}), 400
         
+        if not isinstance(data['query'], str):
+            return jsonify({'error': 'Query must be a string'}), 400
+
         query = data['query'].strip()
         if not query:
             return jsonify({'error': 'Query cannot be empty'}), 400
         
         force_refresh = data.get('forceRefresh', False)
+        if not isinstance(force_refresh, bool):
+            return jsonify({'error': 'forceRefresh must be a boolean'}), 400
         
         # Track query
         increment_stat('total_queries')
@@ -335,7 +324,12 @@ def handle_query():
         else:
             # Call LLM
             llm_start = time.time()
-            response_text = call_llm(query)
+            try:
+                response_text = call_llm(query)
+            except LLMUnavailable:
+                increment_stat('errors')
+                return jsonify({'error': 'LLM provider unavailable'}), 503
+
             llm_time = time.time() - llm_start
             
             increment_stat('llm_calls')
@@ -387,7 +381,6 @@ def handle_query():
         increment_stat('errors')
         return jsonify({
             'error': 'Internal server error',
-            'message': str(e)
         }), 500
 
 
@@ -542,7 +535,7 @@ def health():
         return jsonify({
             'status': 'healthy',
             'redis': 'connected',
-            'model_loaded': True,
+            'model_loaded': model is not None,
             'total_queries_processed': total_queries,
             'timestamp': datetime.now().isoformat()
         })
