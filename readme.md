@@ -78,7 +78,16 @@ Redis stores query embeddings, responses, metadata, and hit counts. Similarity s
 
 ## Tests and demos
 
-Run the included scripts inside the service container:
+Run the automated unit tests locally:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-test.txt
+python -m pytest
+```
+
+The demo and load-test scripts exercise a running service:
 
 ```bash
 docker-compose exec semantic-cache python demo.py
