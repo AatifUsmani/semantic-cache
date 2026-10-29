@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from sentence_transformers import SentenceTransformer
 import redis
 import numpy as np
 import time
@@ -26,12 +25,8 @@ CACHE_TTL_EVERGREEN = int(os.getenv('CACHE_TTL_EVERGREEN', 86400))  # 24 hours
 CACHE_TTL_TIME_SENSITIVE = int(os.getenv('CACHE_TTL_TIME_SENSITIVE', 3600))  # 1 hour
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 
-# Initialize
-logger.info("Loading embedding model (all-MiniLM-L6-v2)...")
-model = SentenceTransformer('all-MiniLM-L6-v2')
-logger.info("Model loaded successfully - 384 dimensions, ~80MB")
-
-logger.info(f"Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}...")
+# Initialize lightweight clients at import time. Network connections and the
+# embedding model are created only when an endpoint needs them.
 redis_client = redis.Redis(
     host=REDIS_HOST, 
     port=REDIS_PORT, 
@@ -40,9 +35,7 @@ redis_client = redis.Redis(
     socket_timeout=5,
     retry_on_timeout=True
 )
-# Test connection
-redis_client.ping()
-logger.info("Redis connected successfully!")
+model = None
 
 # Statistics tracking with Redis persistence
 STATS_KEY = "cache:stats"
@@ -112,6 +105,13 @@ def get_embedding(text: str) -> np.ndarray:
     - Compact: 80MB model size
     - Production-proven: Used by thousands of companies
     """
+    global model
+    if model is None:
+        from sentence_transformers import SentenceTransformer
+
+        logger.info("Loading embedding model: all-MiniLM-L6-v2")
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+
     return model.encode(text, convert_to_numpy=True)
 
 
@@ -527,7 +527,7 @@ def health():
         return jsonify({
             'status': 'healthy',
             'redis': 'connected',
-            'model_loaded': True,
+            'model_loaded': model is not None,
             'total_queries_processed': total_queries,
             'timestamp': datetime.now().isoformat()
         })

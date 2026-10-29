@@ -21,6 +21,7 @@ docker-compose -f docker-compose.yml up --build
 ```
 
 The API listens on `http://localhost:3000`.
+The embedding model loads when the first query arrives; importing the Flask app does not load the model or require Redis to be available.
 
 ## Try it
 
