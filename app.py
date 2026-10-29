@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import logging
 import json
+from semantic_cache.similarity import cosine_similarity
 
 # Structured logging with severity levels
 logging.basicConfig(
@@ -101,20 +102,6 @@ def categorize_query(query: str) -> str:
     return 'general'
 
 
-def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
-    # Force both to 1D arrays
-    v1 = np.array(vec1).flatten()
-    v2 = np.array(vec2).flatten()
-    
-    dot_product = np.dot(v1, v2)
-    norm_product = np.linalg.norm(v1) * np.linalg.norm(v2)
-    
-    if norm_product == 0:
-        return 0.0
-    
-    return float(dot_product / norm_product)
-
-
 def get_embedding(text: str) -> np.ndarray:
     """
     Convert text to 384-dimensional vector using sentence-transformers.
@@ -149,14 +136,12 @@ def search_cache(query_embedding: np.ndarray, query: str):
             
             similarity = cosine_similarity(q_vec, c_vec)
             
-            # THIS WILL SHOW IN YOUR TERMINAL - LOOK FOR THIS:
-            print(f"DEBUG: Comparing '{query[:20]}' vs '{key.decode()[:20]}' | Score: {similarity:.4f}")
-            
-            if similarity > best_similarity and similarity >= 0.70: # Dropped to 0.70 for demo
+            if similarity > best_similarity and similarity >= SIMILARITY_THRESHOLD:
                 best_similarity = similarity
                 best_match_key = key
-                
-        except Exception as e:
+
+        except (TypeError, ValueError) as e:
+            logger.warning("Skipping invalid cached embedding: %s", e)
             continue
 
     if best_match_key:
