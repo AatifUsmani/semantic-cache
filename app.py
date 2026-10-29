@@ -182,6 +182,10 @@ def store_in_cache(query: str, response: str, embedding: np.ndarray):
         logger.error(f"❌ Store Error: {e}")
 
 
+class LLMUnavailable(Exception):
+    """Raised when the provider cannot produce a response."""
+
+
 # Circuit breaker for LLM API (graceful degradation)
 LLM_FAILURE_COUNT_KEY = "llm:failure_count"
 LLM_CIRCUIT_OPEN_KEY = "llm:circuit_open"
@@ -190,21 +194,12 @@ CIRCUIT_RESET_TIME = 60  # seconds
 
 
 def call_llm(query: str) -> str:
-    """
-    Call LLM API with circuit breaker pattern for resilience.
-    
-    Circuit breaker prevents cascading failures:
-    - If LLM API fails 5 times, open circuit (stop trying)
-    - Wait 60 seconds, then try again
-    - This prevents overwhelming a failing service
-    
-    Replace mock with actual API call for production.
-    """
+    """Call the configured provider, raising LLMUnavailable on failure."""
     # Check circuit breaker
     circuit_open = redis_client.get(LLM_CIRCUIT_OPEN_KEY)
     if circuit_open:
-        logger.warning("LLM circuit breaker is OPEN - using fallback response")
-        return "I'm experiencing high load. Please try again in a moment."
+        logger.warning("LLM circuit breaker is open")
+        raise LLMUnavailable("LLM circuit breaker is open")
     
     try:
         if OPENAI_API_KEY:
@@ -225,27 +220,31 @@ def call_llm(query: str) -> str:
                     {"role": "user", "content": query}
                 ]
             )
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
         else:
             # Mock response for demo (simulates LLM latency)
             time.sleep(0.5)
-            return (
+            result = (
                 f"This is a mock LLM response to: '{query}'. "
                 f"In production, replace with actual API call (OpenAI, Anthropic, etc.)"
             )
-            
+
+        redis_client.delete(LLM_FAILURE_COUNT_KEY)
+        return result
     except Exception as e:
         logger.error(f"LLM API error: {e}", exc_info=True)
         
         # Increment failure count
         failures = redis_client.incr(LLM_FAILURE_COUNT_KEY)
+        if failures == 1:
+            redis_client.expire(LLM_FAILURE_COUNT_KEY, CIRCUIT_RESET_TIME)
         
         # Open circuit breaker if too many failures
         if failures >= MAX_FAILURES:
             redis_client.setex(LLM_CIRCUIT_OPEN_KEY, CIRCUIT_RESET_TIME, "1")
             logger.error(f"LLM circuit breaker OPENED after {failures} failures")
         
-        return f"Error: Unable to process your request. Please try again."
+        raise LLMUnavailable("LLM provider failed") from e
 
 @app.route('/api/query', methods=['POST'])
 def handle_query():
@@ -271,16 +270,21 @@ def handle_query():
     
     try:
         # Parse and validate request
-        data = request.get_json()
-        if not data or 'query' not in data:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict) or 'query' not in data:
             logger.warning("Request missing 'query' parameter")
             return jsonify({'error': 'Query parameter required'}), 400
         
+        if not isinstance(data['query'], str):
+            return jsonify({'error': 'Query must be a string'}), 400
+
         query = data['query'].strip()
         if not query:
             return jsonify({'error': 'Query cannot be empty'}), 400
         
         force_refresh = data.get('forceRefresh', False)
+        if not isinstance(force_refresh, bool):
+            return jsonify({'error': 'forceRefresh must be a boolean'}), 400
         
         # Track query
         increment_stat('total_queries')
@@ -320,7 +324,12 @@ def handle_query():
         else:
             # Call LLM
             llm_start = time.time()
-            response_text = call_llm(query)
+            try:
+                response_text = call_llm(query)
+            except LLMUnavailable:
+                increment_stat('errors')
+                return jsonify({'error': 'LLM provider unavailable'}), 503
+
             llm_time = time.time() - llm_start
             
             increment_stat('llm_calls')
@@ -372,7 +381,6 @@ def handle_query():
         increment_stat('errors')
         return jsonify({
             'error': 'Internal server error',
-            'message': str(e)
         }), 500
 
 

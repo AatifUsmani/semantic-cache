@@ -58,6 +58,8 @@ Example request:
 }
 ```
 
+Requests with a missing, empty, or non-string `query` return `400`. A provider failure returns `503` and is not stored in the cache.
+
 ## Configuration
 
 Set these variables in `docker-compose.yml`:
