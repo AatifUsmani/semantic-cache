@@ -8,9 +8,7 @@ import requests
 import json
 import time
 import os
-from datetime import datetime
-
-API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:5000")
+API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:3000")
 
 def print_header(text):
     print(f"\n{'='*80}")
@@ -33,7 +31,7 @@ def send_query(query: str, force_refresh: bool = False, explain: bool = True):
     response = requests.post(
         f"{API_URL}/api/query",
         json={"query": query, "forceRefresh": force_refresh},
-        timeout=30
+        timeout=180
     )
     latency = time.time() - start_time
     
@@ -82,8 +80,7 @@ always result in cache hits after the first request.
 📊 Analysis:
    • First request: Calls LLM and caches result
    • Second request: Returns cached result instantly
-   • Typical speedup: 10-50x faster
-   • Cost savings: 100% (no LLM call)
+   • Compare the measured latency and provider path for both requests
     """)
 
 def demo_semantic_similarity():
@@ -109,11 +106,8 @@ meaning should hit the cache. This is where semantic embeddings shine.
     
     print("""
 📊 Analysis:
-   • All queries ask the same thing with different words
-   • Embedding model captures semantic meaning
-   • Cosine similarity detects equivalence
-   • Only first query calls LLM, rest hit cache
-   • This pattern is extremely common in real usage!
+   • Compare the observed cache source and similarity score for each query
+   • A hit is an approximation, not proof that the cached response is correct
     """)
 
 def demo_time_sensitivity():
@@ -159,7 +153,7 @@ Not all queries should be cached the same way. Time-sensitive queries
    • Time-sensitive: Short cache (1 hour)
    • Evergreen: Long cache (24 hours)
    • Keywords trigger detection (today, now, current, etc.)
-   • Prevents stale data while maximizing cache hits
+   • Keyword heuristics can misclassify queries; this is not a freshness guarantee
     """)
 
 def demo_threshold_impact():
@@ -185,17 +179,15 @@ must be to hit the cache. Higher = stricter, Lower = more permissive.
     
     for variation, expected in variations:
         print_subheader(f"Testing: \"{variation}\"")
-        print(f"Expected: {expected}")
+        print(f"Hypothesis: {expected}")
         send_query(variation)
         time.sleep(0.5)
     
     print("""
 📊 Analysis:
-   • Threshold of 0.75 balances precision and recall
-   • Too high (0.95+): Misses valid paraphrases
-   • Too low (0.70-): False positives increase
-   • Domain-specific tuning recommended
-   • Monitor false negatives in production
+   • The configured threshold is a tunable starting point, not a measured optimum
+   • Use evaluation/evaluate_semantic_cache.py with representative examples
+   • Review false positives before serving cached answers to users
     """)
 
 def demo_category_distribution():
@@ -203,8 +195,8 @@ def demo_category_distribution():
     print_header("DEMO 5: Query Categorization")
     
     print("""
-The system automatically categorizes queries for better cache management
-and analytics. This helps with monitoring and optimization.
+Queries receive lightweight keyword-based categories for cache metadata.
+These heuristic labels are descriptive only; they do not control matching.
     """)
     
     categories = {
@@ -222,20 +214,16 @@ and analytics. This helps with monitoring and optimization.
             print(f"   • {query}")
         time.sleep(0.3)
     
-    print_subheader("Cache Statistics by Category")
+    print_subheader("Cache Statistics")
     response = requests.get(f"{API_URL}/api/stats")
     if response.status_code == 200:
         stats = response.json()
-        print("\nCategory Distribution:")
-        for category, count in stats.get('category_distribution', {}).items():
-            print(f"   {category:.<20} {count} entries")
+        print(json.dumps(stats.get("cache_statistics", {}), indent=2))
     
     print("""
 📊 Analysis:
-   • Categories enable targeted cache management
-   • Can set different TTLs per category
-   • Helps identify usage patterns
-   • Supports A/B testing and optimization
+   • Categories are metadata only; they do not change the TTL policy
+   • TTL selection currently uses separate keyword heuristics
     """)
 
 def demo_force_refresh():
@@ -249,7 +237,7 @@ bypasses the cache and makes a new LLM call.
     
     query = "What are the benefits of exercise?"
     
-    print_subheader("Normal Request (Should Hit Cache)")
+    print_subheader("Normal Request (Misses on the First Run)")
     send_query(query)
     time.sleep(0.5)
     
@@ -263,46 +251,6 @@ bypasses the cache and makes a new LLM call.
    • New response also gets cached
    • Updates existing cache entry
     """)
-
-##removed for now - will add more comprehensive load testing in future iterations
-def demo_cost_savings():
-    """Calculate and display cost savings"""
-    print_header("DEMO 7: Cost Savings Analysis")
-    
-    response = requests.get(f"{API_URL}/api/stats")
-    if response.status_code == 200:
-        stats = response.json()
-        
-        # Assumptions
-        llm_cost_per_call = 0.03  # $0.03 per GPT-3.5-turbo call
-        
-        total_queries = stats['total_queries']
-        cache_hits = stats['cache_hits']
-        llm_calls = stats['llm_calls']
-        
-        # Calculate costs
-        cost_without_cache = total_queries * llm_cost_per_call
-        cost_with_cache = llm_calls * llm_cost_per_call
-        savings = cost_without_cache - cost_with_cache
-        savings_percent = (savings / cost_without_cache * 100) if cost_without_cache > 0 else 0
-        
-        print(f"""
-Current Session Statistics:
-   • Total Queries: {total_queries}
-   • Cache Hits: {cache_hits}
-   • Cache Hit Rate: {stats['cache_hit_rate']}
-   • LLM Calls Made: {llm_calls}
-
-Cost Analysis (assuming $0.03 per LLM call):
-   • Cost without cache: ${cost_without_cache:.2f}
-   • Cost with cache: ${cost_with_cache:.2f}
-   • Savings: ${savings:.2f} ({savings_percent:.1f}%)
-
-Projected Monthly Savings (at 10,000 queries/day):
-   • Without cache: ${10000 * 30 * llm_cost_per_call:.2f}/month
-   • With cache ({stats['cache_hit_rate']}): ${10000 * 30 * llm_cost_per_call * (1 - cache_hits/total_queries if total_queries > 0 else 0):.2f}/month
-   • Monthly savings: ${10000 * 30 * llm_cost_per_call * (cache_hits/total_queries if total_queries > 0 else 0):.2f}
-        """)
 
 def display_system_stats():
     """Display comprehensive system statistics"""
@@ -369,15 +317,13 @@ real examples and analysis.
         print_header("DEMO COMPLETED!")
         print("""
 Key Takeaways:
-   ✅ Semantic caching reduces costs by 50-80%
-   ✅ Latency improves by 10-50x for cache hits
-   ✅ Handles paraphrases and variations automatically
-   ✅ Smart categorization for different query types
-   ✅ Production-ready with monitoring and stats
-   ✅ Easy to deploy with Docker Compose
+   ✅ Semantic matches reuse a prior response when the threshold is met
+   ✅ Redis Stack provides indexed vector lookup and bounded cache storage
+   ✅ The evaluation dataset makes threshold tradeoffs measurable
+   ✅ This is a local, single-tenant prototype, not an internet-facing service
 
 Next Step:
-    - Run load_test.py to see performance under load
+    - Run load_test.py to measure this setup; results vary by machine and workload
         """)
         
     except KeyboardInterrupt:
