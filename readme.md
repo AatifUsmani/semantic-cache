@@ -24,7 +24,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-By default, the service uses a mock LLM and requires no API key. The embedding model downloads from Hugging Face when the first query arrives, so that request may be slower and requires outbound network access. The API is bound to `127.0.0.1:3000`; Redis is available only on the Compose network and persists data in a named volume.
+By default, the service uses a mock LLM and requires no API key. The application image includes PyTorch for local embedding inference, so it is large; the embedding model downloads from Hugging Face when the first query arrives, which may make that request slower and requires outbound network access. The API is bound to `127.0.0.1:3000`; Redis is available only on the Compose network and persists data in a named volume.
 
 For live OpenAI responses, set `LLM_PROVIDER=openai`, `OPENAI_API_KEY`, and optionally `OPENAI_MODEL` in `.env`, then rebuild/restart the service. Requests sent in this mode are sent to OpenAI. Cache entries contain an embedding, response, and metadata, not a raw-prompt field; provider responses may quote user input. Request logs contain no prompt content.
 
