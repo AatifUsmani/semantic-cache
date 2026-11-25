@@ -17,15 +17,11 @@ RUN useradd --create-home --uid 10001 app \
     && mkdir -p "$HF_HOME" \
     && chown -R app:app /app /home/app
 
-ARG EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-ENV EMBEDDING_MODEL=${EMBEDDING_MODEL}
-
 USER app
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('${EMBEDDING_MODEL}')"
 
 COPY --chown=app:app app.py demo.py load_test.py test_cache.py ./
 COPY --chown=app:app semantic_cache ./semantic_cache
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "120", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "300", "app:app"]

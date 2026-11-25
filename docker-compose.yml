@@ -14,8 +14,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
     deploy:
       resources:
         limits:
@@ -35,6 +33,7 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
       CACHE_NAMESPACE: ${CACHE_NAMESPACE:-local}
+      MAX_QUERY_CHARS: ${MAX_QUERY_CHARS:-4000}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
