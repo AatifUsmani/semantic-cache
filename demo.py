@@ -7,9 +7,10 @@ Demonstrates key features with explanations
 import requests
 import json
 import time
+import os
 from datetime import datetime
 
-API_URL = "http://localhost:5000"
+API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:5000")
 
 def print_header(text):
     print(f"\n{'='*80}")
