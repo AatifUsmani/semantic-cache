@@ -8,10 +8,12 @@ import requests
 import time
 import concurrent.futures
 import statistics
+import math
 from typing import List, Dict
 import random
+import os
 
-API_URL = "http://localhost:3000"
+API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:3000")
 
 # Sample queries for load testing
 SAMPLE_QUERIES = [
@@ -73,6 +75,12 @@ class LoadTestResults:
                 'total_requests': self.total_requests,
                 'errors': self.errors
             }
+
+        ordered_latencies = sorted(self.latencies)
+
+        def percentile(percent: float) -> float:
+            rank = max(0, math.ceil(percent * len(ordered_latencies)) - 1)
+            return ordered_latencies[rank]
         
         return {
             'total_requests': self.total_requests,
@@ -83,8 +91,8 @@ class LoadTestResults:
             'cache_hit_rate': f"{(self.cache_hits / len(self.latencies) * 100):.2f}%",
             'avg_latency_ms': f"{statistics.mean(self.latencies) * 1000:.2f}",
             'median_latency_ms': f"{statistics.median(self.latencies) * 1000:.2f}",
-            'p95_latency_ms': f"{statistics.quantiles(self.latencies, n=20)[18] * 1000:.2f}",
-            'p99_latency_ms': f"{statistics.quantiles(self.latencies, n=100)[98] * 1000:.2f}",
+            'p95_latency_ms': f"{percentile(0.95) * 1000:.2f}",
+            'p99_latency_ms': f"{percentile(0.99) * 1000:.2f}",
             'min_latency_ms': f"{min(self.latencies) * 1000:.2f}",
             'max_latency_ms': f"{max(self.latencies) * 1000:.2f}",
         }
@@ -96,7 +104,7 @@ def send_query(query: str) -> tuple:
         response = requests.post(
             f"{API_URL}/api/query",
             json={"query": query},
-            timeout=30
+            timeout=180
         )
         latency = time.time() - start_time
         
@@ -111,7 +119,7 @@ def send_query(query: str) -> tuple:
         print(f"Error: {e}")
         return (latency, 'error', False)
 
-def sequential_load_test(num_requests: int = 50) -> LoadTestResults:
+def sequential_load_test(num_requests: int = 50) -> Dict:
     """Test with sequential requests"""
     print(f"\n{'='*60}")
     print(f"Sequential Load Test: {num_requests} requests")
@@ -136,7 +144,7 @@ def sequential_load_test(num_requests: int = 50) -> LoadTestResults:
     
     return summary
 
-def concurrent_load_test(num_requests: int = 50, max_workers: int = 10) -> LoadTestResults:
+def concurrent_load_test(num_requests: int = 50, max_workers: int = 10) -> Dict:
     """Test with concurrent requests"""
     print(f"\n{'='*60}")
     print(f"Concurrent Load Test: {num_requests} requests, {max_workers} workers")

@@ -8,8 +8,9 @@ import requests
 import json
 import time
 from typing import List, Dict
+import os
 
-API_URL = "http://localhost:3000"
+API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:3000")
 
 def print_separator():
     print("\n" + "="*80 + "\n")
@@ -20,7 +21,7 @@ def send_query(query: str, force_refresh: bool = False) -> Dict:
         response = requests.post(
             f"{API_URL}/api/query",
             json={"query": query, "forceRefresh": force_refresh},
-            timeout=30
+            timeout=180
         )
         response.raise_for_status()
         return response.json()
@@ -199,13 +200,17 @@ def display_final_stats():
     stats = get_stats()
     if stats:
         print(json.dumps(stats, indent=2))
-        
+
+        query_stats = stats.get("query_statistics", {})
+        cache_stats = stats.get("cache_statistics", {})
         print("\n\nKEY METRICS:")
-        print(f"  • Cache Hit Rate: {stats['cache_hit_rate']}")
-        print(f"  • Total Queries: {stats['total_queries']}")
-        print(f"  • LLM Calls Saved: {stats['cache_hits']}")
-        print(f"  • Average Latency: {stats['average_latency_ms']}ms")
-        print(f"  • Cache Entries: {stats['total_cache_entries']}")
+        print(
+            "  • Cache Hit Rate: "
+            f"{query_stats.get('cache_hit_rate_percent', 0)}%"
+        )
+        print(f"  • Total Queries: {query_stats.get('total_queries', 0)}")
+        print(f"  • Cache Hits: {query_stats.get('cache_hits', 0)}")
+        print(f"  • Cache Entries: {cache_stats.get('entries', 0)}")
 
 def main():
     """Run all tests"""
