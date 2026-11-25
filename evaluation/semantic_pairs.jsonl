@@ -1,0 +1,42 @@
+{"query_a":"What is the capital of France?","query_b":"Which city is the capital of France?","same_intent":true}
+{"query_a":"Who was the first person to walk on the Moon?","query_b":"Which astronaut first stepped onto the lunar surface?","same_intent":true}
+{"query_a":"Who wrote Hamlet?","query_b":"Who is the author of the play Hamlet?","same_intent":true}
+{"query_a":"What currency is used in Japan?","query_b":"What is Japan's official currency?","same_intent":true}
+{"query_a":"What is the tallest mountain on Earth?","query_b":"Which mountain has the highest elevation above sea level?","same_intent":true}
+{"query_a":"At what temperature does water boil at sea level?","query_b":"What is the boiling point of water at standard pressure?","same_intent":true}
+{"query_a":"What is photosynthesis?","query_b":"How do plants turn sunlight into chemical energy?","same_intent":true}
+{"query_a":"Which ocean is the largest?","query_b":"Name Earth's biggest ocean by area.","same_intent":true}
+{"query_a":"What does DNA stand for?","query_b":"What is the full name of DNA?","same_intent":true}
+{"query_a":"How do I sort a Python list in ascending order?","query_b":"Show me how to order a list from smallest to largest in Python.","same_intent":true}
+{"query_a":"What is 17 multiplied by 19?","query_b":"Calculate the product of 17 and 19.","same_intent":true}
+{"query_a":"Where is the Great Wall located?","query_b":"In which country can you find the Great Wall?","same_intent":true}
+{"query_a":"Who painted the Mona Lisa?","query_b":"Who is the artist behind the Mona Lisa?","same_intent":true}
+{"query_a":"Explain Newton's first law of motion.","query_b":"What does the law of inertia state?","same_intent":true}
+{"query_a":"How many sides does a hexagon have?","query_b":"What is the number of edges in a hexagon?","same_intent":true}
+{"query_a":"Convert 10 kilometers to miles.","query_b":"How many miles are in ten kilometres?","same_intent":true}
+{"query_a":"Who discovered penicillin?","query_b":"Which scientist is credited with discovering penicillin?","same_intent":true}
+{"query_a":"What is Earth's natural satellite called?","query_b":"What is the name of the Moon that orbits Earth?","same_intent":true}
+{"query_a":"What does HTTP stand for?","query_b":"What is the full form of HTTP?","same_intent":true}
+{"query_a":"What is the closest star to Earth besides the Sun?","query_b":"Which star is nearest to our planet other than the Sun?","same_intent":true}
+{"query_a":"What is the capital of France?","query_b":"What is the largest city in France by population?","same_intent":false}
+{"query_a":"Who was the first person to walk on the Moon?","query_b":"Who was the first person to orbit the Moon?","same_intent":false}
+{"query_a":"Who wrote Hamlet?","query_b":"Who played Hamlet in the 1996 film?","same_intent":false}
+{"query_a":"What currency is used in Japan?","query_b":"What currency is used in China?","same_intent":false}
+{"query_a":"What is the tallest mountain on Earth?","query_b":"What is the deepest point in the ocean?","same_intent":false}
+{"query_a":"At what temperature does water boil?","query_b":"At what temperature does water freeze?","same_intent":false}
+{"query_a":"What is photosynthesis?","query_b":"What is cellular respiration?","same_intent":false}
+{"query_a":"Which ocean is the largest?","query_b":"Which ocean is the deepest?","same_intent":false}
+{"query_a":"What does DNA stand for?","query_b":"How does DNA replication work?","same_intent":false}
+{"query_a":"How do I sort a Python list in ascending order?","query_b":"How do I sort a Python list in descending order?","same_intent":false}
+{"query_a":"What is 17 multiplied by 19?","query_b":"What is 17 plus 19?","same_intent":false}
+{"query_a":"Where is the Great Wall located?","query_b":"When was construction of the Great Wall started?","same_intent":false}
+{"query_a":"Who painted the Mona Lisa?","query_b":"In which museum is the Mona Lisa displayed?","same_intent":false}
+{"query_a":"Explain Newton's first law of motion.","query_b":"Explain Newton's second law of motion.","same_intent":false}
+{"query_a":"How many sides does a hexagon have?","query_b":"What is the sum of the interior angles of a hexagon?","same_intent":false}
+{"query_a":"Convert 10 kilometers to miles.","query_b":"Convert 10 miles to kilometers.","same_intent":false}
+{"query_a":"Who discovered penicillin?","query_b":"Who developed the first successful polio vaccine?","same_intent":false}
+{"query_a":"What is Earth's natural satellite called?","query_b":"What is the natural satellite of Mars called?","same_intent":false}
+{"query_a":"What does HTTP stand for?","query_b":"How is HTTPS different from HTTP?","same_intent":false}
+{"query_a":"What is the closest star to Earth besides the Sun?","query_b":"What is the brightest star in Earth's night sky?","same_intent":false}
+{"query_a":"What is the weather in Toronto today?","query_b":"What is the weather in Vancouver today?","same_intent":false}
+{"query_a":"What is Apple's current stock price?","query_b":"What is Microsoft's current stock price?","same_intent":false}
