@@ -8,8 +8,9 @@ import requests
 import json
 import time
 from typing import List, Dict
+import os
 
-API_URL = "http://localhost:3000"
+API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:3000")
 
 def print_separator():
     print("\n" + "="*80 + "\n")

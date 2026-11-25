@@ -1,13 +1,9 @@
-version: '3.8'
-
 services:
   redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    image: redis/redis-stack-server:7.4.0-v8
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes
+    command: ["redis-stack-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -15,26 +11,40 @@ services:
       retries: 5
 
   semantic-cache:
-    platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
-      shm_size: '2gb'
+      args:
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
     deploy:
       resources:
         limits:
-          memory: 4G    # Maximum RAM allowed
-          cpus: '2.0'   # Recommended for SentenceTransformers on CPU
+          memory: 4G
+          cpus: '2.0'
         reservations:
-          memory: 1G    # Minimum RAM reserved
+          memory: 1G
     ports:
-      - "3000:5000"
+      - "127.0.0.1:3000:5000"
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SIMILARITY_THRESHOLD=0.75
-      - CACHE_TTL=86400
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SIMILARITY_THRESHOLD: ${SIMILARITY_THRESHOLD:-0.75}
+      CACHE_TTL_EVERGREEN_SECONDS: ${CACHE_TTL_EVERGREEN_SECONDS:-86400}
+      CACHE_TTL_TIME_SENSITIVE_SECONDS: ${CACHE_TTL_TIME_SENSITIVE_SECONDS:-3600}
+      MAX_CACHE_SIZE: ${MAX_CACHE_SIZE:-10000}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
+      CACHE_NAMESPACE: ${CACHE_NAMESPACE:-local}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     depends_on:
       redis:
         condition: service_healthy

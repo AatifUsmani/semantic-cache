@@ -10,8 +10,9 @@ import concurrent.futures
 import statistics
 from typing import List, Dict
 import random
+import os
 
-API_URL = "http://localhost:3000"
+API_URL = os.getenv("SEMANTIC_CACHE_API_URL", "http://localhost:3000")
 
 # Sample queries for load testing
 SAMPLE_QUERIES = [
